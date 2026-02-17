@@ -13,8 +13,16 @@ export function isIOS(): boolean {
   );
 }
 
+export function isSecureContext(): boolean {
+  return window.isSecureContext;
+}
+
 export function shouldUseFallback(): boolean {
-  return isIOS() && isStandalonePWA();
+  // iOS standalone PWA has broken getUserMedia
+  if (isIOS() && isStandalonePWA()) return true;
+  // Insecure context (HTTP on non-localhost) — getUserMedia is unavailable
+  if (!isSecureContext()) return true;
+  return false;
 }
 
 export async function getCameraStream(

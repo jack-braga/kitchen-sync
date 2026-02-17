@@ -1,0 +1,1 @@
+if('serviceWorker' in navigator) navigator.serviceWorker.register('/kitchen-sync/dev-sw.js?dev-sw', { scope: '/kitchen-sync/', type: 'classic' })

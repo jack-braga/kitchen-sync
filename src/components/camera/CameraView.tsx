@@ -24,6 +24,7 @@ export function CameraView() {
     isStreaming,
     useFallback,
     permissionDenied,
+    error: cameraError,
     startCamera,
     stopCamera,
     switchCamera,
@@ -199,47 +200,48 @@ export function CameraView() {
   }
 
   return (
-    <div className="relative flex h-full flex-col">
-      {/* Video / Upload area */}
-      <div className="relative flex-1 bg-black">
-        {useFallback ? (
-          <FileUploadFallback onFileSelected={handleFileSelected} />
-        ) : (
-          <>
-            <video
-              ref={videoRef}
-              playsInline
-              autoPlay
-              muted
-              onLoadedMetadata={handleVideoResize}
-              onResize={handleVideoResize}
-              className="size-full object-cover"
-            />
-            {detections.length > 0 && (
-              <DetectionOverlay
-                detections={detections}
-                videoWidth={videoSize.width}
-                videoHeight={videoSize.height}
-                showConfidence={showConfidence}
-              />
-            )}
-          </>
-        )}
-
-        {/* Model loading overlay */}
-        {isModelLoading && (
-          <ModelLoadingOverlay
-            progress={loadProgress}
-            modelName={config.displayName}
-            estimatedSize={config.estimatedSize}
+    <div className="relative h-full bg-black">
+      {/* Video / Upload area — fills entire view */}
+      {useFallback ? (
+        <FileUploadFallback onFileSelected={handleFileSelected} reason={cameraError} />
+      ) : (
+        <>
+          <video
+            ref={videoRef}
+            playsInline
+            autoPlay
+            muted
+            onLoadedMetadata={handleVideoResize}
+            onResize={handleVideoResize}
+            className="size-full object-cover"
           />
-        )}
-      </div>
+          {detections.length > 0 && (
+            <DetectionOverlay
+              detections={detections}
+              videoWidth={videoSize.width}
+              videoHeight={videoSize.height}
+              showConfidence={showConfidence}
+            />
+          )}
+        </>
+      )}
 
-      {/* Controls */}
-      <div className="space-y-3 border-t bg-background p-4">
+      {/* Model loading overlay */}
+      {isModelLoading && (
+        <ModelLoadingOverlay
+          progress={loadProgress}
+          modelName={config.displayName}
+          estimatedSize={config.estimatedSize}
+        />
+      )}
+
+      {/* Controls — overlaid at bottom of camera view */}
+      <div className="absolute inset-x-0 bottom-0 space-y-2 bg-gradient-to-t from-black/70 to-transparent px-4 pb-4 pt-10">
         <div className="flex items-center justify-center gap-2">
-          <Badge variant={isModelReady ? 'default' : 'secondary'}>
+          <Badge
+            variant={isModelReady ? 'default' : 'secondary'}
+            className="shadow-sm"
+          >
             {config.displayName}
             {isModelReady && ' \u2713'}
           </Badge>
@@ -250,7 +252,7 @@ export function CameraView() {
             size="lg"
             onClick={handleScan}
             disabled={isScanning || isModelLoading || (!isStreaming && !useFallback) || (useFallback && !uploadedImageData)}
-            className="gap-2"
+            className="gap-2 shadow-lg"
           >
             {isScanning ? (
               <Loader2 className="size-5 animate-spin" />
@@ -266,6 +268,7 @@ export function CameraView() {
               size="lg"
               onClick={switchCamera}
               disabled={!isStreaming}
+              className="border-white/30 bg-white/10 text-white shadow-lg hover:bg-white/20"
             >
               <RefreshCw className="size-5" />
             </Button>

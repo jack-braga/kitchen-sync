@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getCameraStream, shouldUseFallback } from '@/lib/camera-utils';
+import { getCameraStream, shouldUseFallback, isSecureContext } from '@/lib/camera-utils';
 
 interface UseCameraReturn {
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -15,9 +15,19 @@ interface UseCameraReturn {
   handleFileUpload: (file: File) => Promise<ImageData>;
 }
 
+/**
+ * Silently ignores AbortError from video.play() — this happens when the
+ * video element is removed from the DOM (e.g. React StrictMode remount)
+ * before play() resolves. It's harmless and expected.
+ */
+function isAbortError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === 'AbortError';
+}
+
 export function useCamera(): UseCameraReturn {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const activeRef = useRef(true); // tracks whether the hook is still mounted
   const [isStreaming, setIsStreaming] = useState(false);
   const [useFallback, setUseFallback] = useState(false);
   const [permissionDenied, setPermissionDenied] = useState(false);
@@ -49,19 +59,43 @@ export function useCamera(): UseCameraReturn {
 
     try {
       const stream = await getCameraStream(facingMode);
+
+      // Guard: component may have unmounted while we awaited getUserMedia
+      if (!activeRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
       streamRef.current = stream;
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        try {
+          await videoRef.current.play();
+        } catch (playErr) {
+          // play() was interrupted because the element was removed — harmless
+          if (isAbortError(playErr)) return;
+          throw playErr;
+        }
       }
 
-      setIsStreaming(true);
+      if (activeRef.current) {
+        setIsStreaming(true);
+      }
     } catch (err) {
+      if (isAbortError(err)) return;
+
       if (err instanceof DOMException && err.name === 'NotAllowedError') {
         setPermissionDenied(true);
+      } else if (!isSecureContext()) {
+        setError('Camera requires a secure connection (HTTPS)');
+        setUseFallback(true);
+      } else if (err instanceof DOMException && err.name === 'NotFoundError') {
+        setError('No camera found on this device');
+        setUseFallback(true);
       } else {
         setError(err instanceof Error ? err.message : 'Camera failed to start');
+        setUseFallback(true);
       }
     }
   }, [facingMode, useFallback]);
@@ -73,16 +107,29 @@ export function useCamera(): UseCameraReturn {
 
     try {
       const stream = await getCameraStream(newMode);
+
+      if (!activeRef.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+
       streamRef.current = stream;
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        try {
+          await videoRef.current.play();
+        } catch (playErr) {
+          if (isAbortError(playErr)) return;
+          throw playErr;
+        }
       }
 
       setIsStreaming(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Camera switch failed');
+      if (!isAbortError(err)) {
+        setError(err instanceof Error ? err.message : 'Camera switch failed');
+      }
     }
   }, [facingMode, stopCamera]);
 
@@ -130,9 +177,11 @@ export function useCamera(): UseCameraReturn {
     });
   }, []);
 
-  // Cleanup on unmount
+  // Track mount/unmount and clean up camera streams
   useEffect(() => {
+    activeRef.current = true;
     return () => {
+      activeRef.current = false;
       streamRef.current?.getTracks().forEach((track) => track.stop());
     };
   }, []);

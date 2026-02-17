@@ -4,9 +4,10 @@ import { Button } from '@/components/ui/button';
 
 interface FileUploadFallbackProps {
   onFileSelected: (file: File) => void;
+  reason?: string | null;
 }
 
-export function FileUploadFallback({ onFileSelected }: FileUploadFallbackProps) {
+export function FileUploadFallback({ onFileSelected, reason }: FileUploadFallbackProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
@@ -26,6 +27,11 @@ export function FileUploadFallback({ onFileSelected }: FileUploadFallbackProps) 
 
   return (
     <div className="flex h-full flex-col items-center justify-center gap-4 p-6">
+      {reason && (
+        <div className="w-full max-w-sm rounded-lg bg-yellow-500/10 px-4 py-2 text-center text-xs text-yellow-700 dark:text-yellow-400">
+          {reason}
+        </div>
+      )}
       {previewUrl ? (
         <img
           src={previewUrl}

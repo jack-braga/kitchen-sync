@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import path from 'path';
 import { qrcode } from 'vite-plugin-qrcode';
+import basicSsl from '@vitejs/plugin-basic-ssl';
 
 export default defineConfig({
   base: '/kitchen-sync/',
@@ -13,6 +14,7 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
+    basicSsl(),
     qrcode({
       filter: (url) => !url.includes('localhost') && !url.includes('127.0.0.1')
     }),
@@ -27,6 +29,9 @@ export default defineConfig({
       },
     },
     VitePWA({
+      devOptions: {
+        enabled: true,
+      },
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
@@ -38,6 +43,7 @@ export default defineConfig({
         display: 'standalone',
         orientation: 'portrait',
         start_url: './',
+        scope: './',
         id: '/kitchen-sync/',
         icons: [
           { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
@@ -47,9 +53,24 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        navigateFallback: 'index.html',
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/huggingface\.co\/.*/i,
+            // ONNX WASM runtime (~21 MB) — cache on first use, not during install
+            urlPattern: /\.wasm$/i,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'wasm-cache',
+              expiration: {
+                maxEntries: 5,
+                maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+              },
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
+          {
+            // HuggingFace model files — cache on first use
+            urlPattern: /^https:\/\/(huggingface\.co|cdn-lfs\.hf\.co|cdn-lfs-us-1\.hf\.co|cdn-lfs-us-1\.huggingface\.co)\/.*/i,
             handler: 'CacheFirst',
             options: {
               cacheName: 'hf-model-cache',

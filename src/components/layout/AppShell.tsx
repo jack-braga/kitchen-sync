@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useNavigationStore } from '@/stores/navigation-store';
 import { BottomNav } from '@/components/layout/BottomNav';
 import { ErrorBoundary } from '@/components/layout/ErrorBoundary';
@@ -6,11 +7,37 @@ import { CameraView } from '@/components/camera/CameraView';
 import { PantryView } from '@/components/pantry/PantryView';
 import { SettingsView } from '@/components/settings/SettingsView';
 import { useOnlineStatus } from '@/hooks/use-online-status';
+import { useOfflineReady } from '@/hooks/use-offline-ready';
+import { InstallPrompt } from '@/components/layout/InstallPrompt';
 import { WifiOff } from 'lucide-react';
+import { toast } from 'sonner';
 
 export function AppShell() {
   const activeTab = useNavigationStore((s) => s.activeTab);
   const isOnline = useOnlineStatus();
+  const { isOfflineReady, needRefresh, updateServiceWorker } = useOfflineReady();
+
+  // Notify user when app is ready for offline use
+  useEffect(() => {
+    if (isOfflineReady) {
+      toast.success('App ready for offline use', {
+        duration: 4000,
+      });
+    }
+  }, [isOfflineReady]);
+
+  // Notify user when an update is available
+  useEffect(() => {
+    if (needRefresh) {
+      toast('Update available', {
+        duration: Infinity,
+        action: {
+          label: 'Refresh',
+          onClick: () => updateServiceWorker(true),
+        },
+      });
+    }
+  }, [needRefresh, updateServiceWorker]);
 
   return (
     <div className="flex h-[100dvh] flex-col">
@@ -34,6 +61,7 @@ export function AppShell() {
         </ErrorBoundary>
       </main>
       <BottomNav />
+      <InstallPrompt />
       <Toaster />
     </div>
   );
